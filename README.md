@@ -137,11 +137,20 @@ public class MyServiceTest {
 
 1. **Manual Review Required**: After running this recipe, you should review the changes as MockK has different semantics than Mockito for some operations.
 
-2. **Method Call Conversions**: This recipe currently focuses on annotations and imports. Method calls like `when()`, `verify()`, and `mock()` may need manual conversion as MockK uses different syntax (e.g., `every {}` instead of `when().thenReturn()`).
+2. **Method Call Conversions**: This recipe currently focuses on annotations, imports, and dependencies. Method calls require manual conversion or conversion to Kotlin first:
+   - `when()` / `whenever()` → `every {}` - Requires Kotlin DSL syntax
+   - `thenReturn()` → `returns` - Requires Kotlin infix function syntax  
+   - `thenThrow()` → `throws` - Requires Kotlin infix function syntax
+   - `any()`, `eq()` → MockK equivalents - Can be used with same imports after switching to `io.mockk.*`
 
-3. **Kotlin-Specific Features**: Consider leveraging MockK's Kotlin-specific features like relaxed mocks, capturing lambdas, and extension functions after migration.
+3. **Recommended Approach**: 
+   - First, run this recipe to convert annotations and imports
+   - Then, convert your test files to Kotlin (.java → .kt)
+   - Finally, manually update method calls to use MockK's Kotlin DSL
 
-## Development
+4. **Kotlin-Specific Features**: Consider leveraging MockK's Kotlin-specific features like relaxed mocks, capturing lambdas, and extension functions after migration.
+
+##Development
 
 ### Project Structure
 

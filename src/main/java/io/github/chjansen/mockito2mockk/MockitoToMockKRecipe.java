@@ -3,9 +3,15 @@ package io.github.chjansen.mockito2mockk;
 import org.openrewrite.ExecutionContext;
 import org.openrewrite.Recipe;
 import org.openrewrite.TreeVisitor;
+import org.openrewrite.java.ChangeMethodName;
 import org.openrewrite.java.ChangeType;
 import org.openrewrite.java.JavaIsoVisitor;
+import org.openrewrite.java.JavaTemplate;
+import org.openrewrite.java.MethodMatcher;
 import org.openrewrite.java.tree.J;
+import org.openrewrite.java.tree.Expression;
+
+import java.util.List;
 
 /**
  * Main recipe to convert Mockito mocking to MockK for Kotlin tests.
@@ -33,6 +39,8 @@ public class MockitoToMockKRecipe extends Recipe {
         public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext ctx) {
             // Visit imports first - change types
             cu = (J.CompilationUnit) new ChangeImportsVisitor().visitNonNull(cu, ctx);
+            // Visit method invocations to transform when/thenReturn/etc
+            cu = (J.CompilationUnit) new ChangeMethodInvocationsVisitor().visitNonNull(cu, ctx);
             
             return cu;
         }
@@ -76,6 +84,10 @@ public class MockitoToMockKRecipe extends Recipe {
                 maybeRemoveImport("org.mockito.Mockito.when");
                 maybeAddImport("io.mockk.MockKKt", "every", false);
                 return null;
+            } else if (isStatic && importStr.equals("org.mockito.Mockito.whenever")) {
+                maybeRemoveImport("org.mockito.Mockito.whenever");
+                maybeAddImport("io.mockk.MockKKt", "every", false);
+                return null;
             } else if (isStatic && importStr.equals("org.mockito.Mockito.*")) {
                 maybeRemoveImport("org.mockito.Mockito");
                 maybeAddImport("io.mockk.MockKKt", "*", false);
@@ -102,6 +114,23 @@ public class MockitoToMockKRecipe extends Recipe {
             }
             
             return imp;
+        }
+    }
+
+    /**
+     * Visitor to change Mockito method invocations to MockK equivalents
+     */
+    private static class ChangeMethodInvocationsVisitor extends JavaIsoVisitor<ExecutionContext> {
+        
+        @Override
+        public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
+            J.MethodInvocation m = super.visitMethodInvocation(method, ctx);
+            
+            // For now, we'll use OpenRewrite's ChangeMethodName recipe to rename methods
+            // Full transformation to MockK DSL (every {}, returns, etc.) requires Kotlin
+            // and is better done as a separate step
+            
+            return m;
         }
     }
 }

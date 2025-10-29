@@ -2,13 +2,14 @@
 type: specs.openrewrite.org/v1beta/recipe
 name: io.github.chjansen.mockito2mockk.MockitoToMockK
 displayName: Convert Mockito to MockK
-description: Converts Mockito mocking framework usage to MockK for Kotlin tests.
+description: Converts Mockito mocking framework usage to MockK for Kotlin tests. Note that when() to every{} and thenReturn() to returns conversions require manual review as MockK uses Kotlin DSL which differs from Java syntax.
 tags:
   - testing
   - mockito
   - mockk
   - kotlin
 recipeList:
+  - io.github.chjansen.mockito2mockk.MockitoToMockKRecipe
   # Change annotation types
   - org.openrewrite.java.ChangeType:
       oldFullyQualifiedTypeName: org.mockito.Mock
@@ -19,13 +20,6 @@ recipeList:
   - org.openrewrite.java.ChangeType:
       oldFullyQualifiedTypeName: org.mockito.Spy
       newFullyQualifiedTypeName: io.mockk.SpyK
-  # Change Mockito static imports
-  - org.openrewrite.java.ChangeStaticFieldImportRecipe:
-      oldClassName: org.mockito.Mockito
-      newClassName: io.mockk.MockKKt
-  - org.openrewrite.java.ChangeStaticFieldImportRecipe:
-      oldClassName: org.mockito.ArgumentMatchers
-      newClassName: io.mockk.MockKKt
   # Remove Mockito JUnit runner
   - org.openrewrite.java.RemoveImport:
       type: org.mockito.junit.MockitoJUnitRunner
