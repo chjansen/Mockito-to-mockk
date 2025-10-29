@@ -1,15 +1,10 @@
 package io.github.chjansen.mockito2mockk;
 
-import org.openrewrite.ExecutionContext;
-import org.openrewrite.Recipe;
-import org.openrewrite.TreeVisitor;
-import org.openrewrite.java.ChangeMethodName;
-import org.openrewrite.java.ChangeType;
-import org.openrewrite.java.JavaIsoVisitor;
-import org.openrewrite.java.JavaTemplate;
-import org.openrewrite.java.MethodMatcher;
+import org.openrewrite.*;
+import org.openrewrite.java.*;
 import org.openrewrite.java.tree.J;
 import org.openrewrite.java.tree.Expression;
+import org.openrewrite.java.tree.TypeUtils;
 
 import java.util.List;
 
@@ -25,118 +20,143 @@ public class MockitoToMockKRecipe extends Recipe {
 
     @Override
     public String getDescription() {
-        return "Converts Mockito mocking framework usage to MockK for Kotlin tests.";
+        return "Converts Mockito usage to MockK in Kotlin test files.";
     }
 
     @Override
     public TreeVisitor<?, ExecutionContext> getVisitor() {
-        return new MockitoToMockKVisitor();
-    }
+        return Preconditions.check(
+                new FindSourceFiles("**/*.kt"),
+                new JavaIsoVisitor<ExecutionContext>() {
 
-    private static class MockitoToMockKVisitor extends JavaIsoVisitor<ExecutionContext> {
+                    // Method matchers for Mockito methods
+                    private final MethodMatcher mockitoVerify = new MethodMatcher("org.mockito.Mockito.verify(..)");
+                    private final MethodMatcher mockitoEq = new MethodMatcher("org.mockito.ArgumentMatchers.eq(..)");
+                    private final MethodMatcher mockitoAny = new MethodMatcher("org.mockito.ArgumentMatchers.any(..)");
+                    private final MethodMatcher mockitoWhen = new MethodMatcher("org.mockito.Mockito.when(..)");
 
-        @Override
-        public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext ctx) {
-            // Visit imports first - change types
-            cu = (J.CompilationUnit) new ChangeImportsVisitor().visitNonNull(cu, ctx);
-            // Visit method invocations to transform when/thenReturn/etc
-            cu = (J.CompilationUnit) new ChangeMethodInvocationsVisitor().visitNonNull(cu, ctx);
-            
-            return cu;
-        }
-    }
+                    @Override
+                    public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext ctx) {
+                        // Remove Mockito imports and add MockK imports
+                        doAfterVisit(new RemoveImport<>("org.mockito.*", false));
+                        doAfterVisit(new RemoveImport<>("org.mockito.kotlin.*", false));
+                        doAfterVisit(new RemoveImport<>("org.mockito.junit.jupiter.*", false));
 
-    /**
-     * Visitor to change Mockito imports to MockK imports
-     */
-    private static class ChangeImportsVisitor extends JavaIsoVisitor<ExecutionContext> {
-        
-        @Override
-        public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext ctx) {
-            // Apply multiple ChangeType recipes
-            cu = (J.CompilationUnit) new ChangeType("org.mockito.Mock", "io.mockk.MockK", true)
-                .getVisitor().visitNonNull(cu, ctx);
-            cu = (J.CompilationUnit) new ChangeType("org.mockito.InjectMocks", "io.mockk.InjectMockKs", true)
-                .getVisitor().visitNonNull(cu, ctx);
-            cu = (J.CompilationUnit) new ChangeType("org.mockito.Spy", "io.mockk.SpyK", true)
-                .getVisitor().visitNonNull(cu, ctx);
-            
-            return cu;
-        }
-        
-        @Override
-        public J.Import visitImport(J.Import _import, ExecutionContext ctx) {
-            J.Import imp = super.visitImport(_import, ctx);
-            
-            String importStr = imp.getQualid().printTrimmed(getCursor());
-            boolean isStatic = imp.isStatic();
-            
-            // Handle static imports for Mockito methods
-            if (isStatic && importStr.equals("org.mockito.Mockito.mock")) {
-                maybeRemoveImport("org.mockito.Mockito.mock");
-                maybeAddImport("io.mockk.MockKKt", "mockk", false);
-                return null;
-            } else if (isStatic && importStr.equals("org.mockito.Mockito.verify")) {
-                maybeRemoveImport("org.mockito.Mockito.verify");
-                maybeAddImport("io.mockk.MockKKt", "verify", false);
-                return null;
-            } else if (isStatic && importStr.equals("org.mockito.Mockito.when")) {
-                maybeRemoveImport("org.mockito.Mockito.when");
-                maybeAddImport("io.mockk.MockKKt", "every", false);
-                return null;
-            } else if (isStatic && importStr.equals("org.mockito.Mockito.whenever")) {
-                maybeRemoveImport("org.mockito.Mockito.whenever");
-                maybeAddImport("io.mockk.MockKKt", "every", false);
-                return null;
-            } else if (isStatic && importStr.equals("org.mockito.Mockito.*")) {
-                maybeRemoveImport("org.mockito.Mockito");
-                maybeAddImport("io.mockk.MockKKt", "*", false);
-                return null;
-            } else if (!isStatic && importStr.equals("org.mockito.Mockito")) {
-                maybeRemoveImport(importStr);
-                maybeAddImport("io.mockk.MockKAnnotations");
-                return null;
-            }
-            // ArgumentMatchers
-            else if (isStatic && importStr.startsWith("org.mockito.ArgumentMatchers")) {
-                String memberName = "*";
-                if (importStr.contains(".") && !importStr.endsWith("*")) {
-                    memberName = importStr.substring(importStr.lastIndexOf(".") + 1);
+                        doAfterVisit(new AddImport<>("io.mockk.*", null, false));
+                        doAfterVisit(new AddImport<>("io.mockk.junit5.MockKExtension", null, false));
+
+                        return super.visitCompilationUnit(cu, ctx);
+                    }
+
+                    @Override
+                    public J.Annotation visitAnnotation(J.Annotation annotation, ExecutionContext ctx) {
+                        J.Annotation a = super.visitAnnotation(annotation, ctx);
+
+                        if (TypeUtils.isOfClassType(a.getType(), "org.mockito.Mock")) {
+                            // Remove @Mock annotation - MockK uses different approach
+                            return null;
+                        }
+
+                        if (TypeUtils.isOfClassType(a.getType(), "org.mockito.InjectMocks")) {
+                            // Remove @InjectMocks annotation - MockK uses different approach
+                            return null;
+                        }
+
+                        if (TypeUtils.isOfClassType(a.getType(), "org.junit.jupiter.api.extension.ExtendWith")) {
+                            // Change MockitoExtension to MockKExtension
+                            if (a.getArguments() != null) {
+                                for (Expression arg : a.getArguments()) {
+                                    if (arg instanceof J.FieldAccess) {
+                                        J.FieldAccess fa = (J.FieldAccess) arg;
+                                        if ("MockitoExtension".equals(fa.getSimpleName()) &&
+                                                fa.getTarget() instanceof J.Identifier &&
+                                                "class".equals(((J.Identifier) fa.getTarget()).getSimpleName())) {
+                                            JavaTemplate template = JavaTemplate.builder("MockKExtension::class")
+                                                    .imports("io.mockk.junit5.MockKExtension")
+                                                    .build();
+
+                                            return template.apply(getCursor(), a.getCoordinates().replace());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        return a;
+                    }
+
+                    @Override
+                    public J.VariableDeclarations visitVariableDeclarations(J.VariableDeclarations multiVariable, ExecutionContext ctx) {
+                        J.VariableDeclarations mv = super.visitVariableDeclarations(multiVariable, ctx);
+
+                        // Convert @Mock annotated fields to MockK equivalents
+                        if (mv.getLeadingAnnotations().stream().anyMatch(a ->
+                                TypeUtils.isOfClassType(a.getType(), "org.mockito.Mock")
+                        )) {
+                            // Remove @Mock annotation and initialize with mockk()
+                            J.VariableDeclarations.NamedVariable variable = mv.getVariables().get(0);
+
+                            JavaTemplate template = JavaTemplate.builder("private val #{} = mockk<#{}>()")
+                                    .imports("io.mockk.mockk")
+                                    .build();
+
+                            return template.apply(
+                                    getCursor(),
+                                    mv.getCoordinates().replace(),
+                                    variable.getSimpleName(),
+                                    mv.getTypeExpression() != null ? mv.getTypeExpression() : "Any"
+                            );
+                        }
+
+                        return mv;
+                    }
+
+                    @Override
+                    public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
+                        J.MethodInvocation m = super.visitMethodInvocation(method, ctx);
+
+                        // Convert verify() calls
+                        if (mockitoVerify.matches(m)) {
+                            JavaTemplate template = JavaTemplate.builder("verify { #{} }")
+                                    .imports("io.mockk.verify")
+                                    .build();
+                            return template.apply(getCursor(), m.getCoordinates().replace(), m.getArguments().get(0));
+                        }
+
+                        // Convert eq() calls
+                        if (mockitoEq.matches(m)) {
+                            JavaTemplate template = JavaTemplate.builder("eq(#{})")
+                                    .imports("io.mockk.eq")
+                                    .build();
+                            return template.apply(getCursor(), m.getCoordinates().replace(), m.getArguments().get(0));
+                        }
+
+                        // Convert any() calls
+                        if (mockitoAny.matches(m)) {
+                            JavaTemplate template = JavaTemplate.builder("any()")
+                                    .imports("io.mockk.any")
+                                    .build();
+                            return template.apply(getCursor(), m.getCoordinates().replace());
+                        }
+
+                        // Convert when() calls to every {} returns
+                        if (mockitoWhen.matches(m)) {
+                            JavaTemplate template = JavaTemplate.builder("every { #{} }")
+                                    .imports("io.mockk.every")
+                                    .build();
+                            return template.apply(getCursor(), m.getCoordinates().replace(), m.getArguments().get(0));
+                        }
+
+                        // Convert .thenReturn() to returns
+                        if (m.getSelect() != null && "thenReturn".equals(m.getSimpleName())) {
+                            JavaTemplate template = JavaTemplate.builder("returns #{}")
+                                    .build();
+                            return template.apply(getCursor(), m.getCoordinates().replace(), m.getArguments().get(0));
+                        }
+
+                        return m;
+                    }
                 }
-                maybeRemoveImport(importStr);
-                maybeAddImport("io.mockk.MockKKt", memberName, false);
-                return null;
-            }
-            // JUnit runner
-            else if (importStr.equals("org.mockito.junit.MockitoJUnitRunner")) {
-                maybeRemoveImport(importStr);
-                return null;
-            }
-            
-            return imp;
-        }
-    }
-
-    /**
-     * Visitor to change Mockito method invocations to MockK equivalents
-     * Note: Method syntax transformations like verify(mock).method() -> verify { mock.method() }
-     * require Kotlin DSL and cannot be fully automated in Java AST transformations.
-     * The import changes prepare the code for manual DSL conversion.
-     */
-    private static class ChangeMethodInvocationsVisitor extends JavaIsoVisitor<ExecutionContext> {
-        
-        @Override
-        public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
-            J.MethodInvocation m = super.visitMethodInvocation(method, ctx);
-            
-            // Method call transformations like:
-            // - verify(mock).method() -> verify { mock.method() }
-            // - when(mock.method()).thenReturn(value) -> every { mock.method() } returns value
-            // 
-            // These require Kotlin lambda syntax which cannot be represented in Java AST.
-            // The recipe handles imports, which prepares the code for manual DSL conversion.
-            
-            return m;
-        }
+        );
     }
 }
