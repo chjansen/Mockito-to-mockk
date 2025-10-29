@@ -1,0 +1,47 @@
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: io.github.chjansen.mockito2mockk.MockitoToMockK
+displayName: Convert Mockito to MockK
+description: Converts Mockito mocking framework usage to MockK for Kotlin tests.
+tags:
+  - testing
+  - mockito
+  - mockk
+  - kotlin
+recipeList:
+  # Change annotation types
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: org.mockito.Mock
+      newFullyQualifiedTypeName: io.mockk.MockK
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: org.mockito.InjectMocks
+      newFullyQualifiedTypeName: io.mockk.InjectMockKs
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: org.mockito.Spy
+      newFullyQualifiedTypeName: io.mockk.SpyK
+  # Change Mockito static imports
+  - org.openrewrite.java.ChangeStaticFieldImportRecipe:
+      oldClassName: org.mockito.Mockito
+      newClassName: io.mockk.MockKKt
+  - org.openrewrite.java.ChangeStaticFieldImportRecipe:
+      oldClassName: org.mockito.ArgumentMatchers
+      newClassName: io.mockk.MockKKt
+  # Remove Mockito JUnit runner
+  - org.openrewrite.java.RemoveImport:
+      type: org.mockito.junit.MockitoJUnitRunner
+  # Change dependencies
+  - org.openrewrite.java.dependencies.ChangeDependency:
+      oldGroupId: org.mockito
+      oldArtifactId: mockito-core
+      newGroupId: io.mockk
+      newArtifactId: mockk
+      newVersion: 1.13.x
+  - org.openrewrite.java.dependencies.ChangeDependency:
+      oldGroupId: org.mockito
+      oldArtifactId: mockito-inline
+      newGroupId: io.mockk
+      newArtifactId: mockk
+      newVersion: 1.13.x
+  - org.openrewrite.java.dependencies.RemoveDependency:
+      groupId: org.mockito
+      artifactId: mockito-junit-jupiter
