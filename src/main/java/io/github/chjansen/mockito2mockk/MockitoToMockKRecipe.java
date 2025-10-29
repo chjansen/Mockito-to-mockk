@@ -119,6 +119,9 @@ public class MockitoToMockKRecipe extends Recipe {
 
     /**
      * Visitor to change Mockito method invocations to MockK equivalents
+     * Note: Method syntax transformations like verify(mock).method() -> verify { mock.method() }
+     * require Kotlin DSL and cannot be fully automated in Java AST transformations.
+     * The import changes prepare the code for manual DSL conversion.
      */
     private static class ChangeMethodInvocationsVisitor extends JavaIsoVisitor<ExecutionContext> {
         
@@ -126,9 +129,12 @@ public class MockitoToMockKRecipe extends Recipe {
         public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
             J.MethodInvocation m = super.visitMethodInvocation(method, ctx);
             
-            // For now, we'll use OpenRewrite's ChangeMethodName recipe to rename methods
-            // Full transformation to MockK DSL (every {}, returns, etc.) requires Kotlin
-            // and is better done as a separate step
+            // Method call transformations like:
+            // - verify(mock).method() -> verify { mock.method() }
+            // - when(mock.method()).thenReturn(value) -> every { mock.method() } returns value
+            // 
+            // These require Kotlin lambda syntax which cannot be represented in Java AST.
+            // The recipe handles imports, which prepares the code for manual DSL conversion.
             
             return m;
         }
