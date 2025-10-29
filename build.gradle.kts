@@ -18,14 +18,17 @@ configurations.all {
 }
 
 val rewriteVersion = "8.21.0"
+val rewriteKotlinVersion = "1.21.1"
 
 dependencies {
     implementation(platform("org.openrewrite:rewrite-bom:${rewriteVersion}"))
     implementation("org.openrewrite:rewrite-java")
+    implementation("org.openrewrite:rewrite-kotlin:${rewriteKotlinVersion}")
     
     implementation("org.openrewrite.recipe:rewrite-testing-frameworks:2.18.0")
 
     testImplementation("org.openrewrite:rewrite-test")
+    testImplementation("org.openrewrite:rewrite-kotlin:${rewriteKotlinVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.3")
